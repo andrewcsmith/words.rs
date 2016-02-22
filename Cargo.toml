@@ -1,0 +1,8 @@
+[package]
+name = "words"
+version = "0.1.0"
+authors = ["Andrew Smith <andrewchristophersmith@gmail.com>"]
+
+[dependencies]
+astar = "0.1"
+edit-distance = "1.0"
