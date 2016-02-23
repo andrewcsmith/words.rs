@@ -1,6 +1,6 @@
 extern crate astar;
 extern crate edit_distance;
-extern crate scoped_threadpool;
+extern crate simple_parallel;
 
 use std::fs::File;
 use std::io::{Error, BufReader, BufRead};
@@ -9,7 +9,7 @@ use std::path::Path;
 
 use astar::SearchProblem;
 use edit_distance::edit_distance;
-use scoped_threadpool::Pool;
+use simple_parallel::Pool;
 
 pub static WORDS_PATH: &'static str = "./data/en";
 pub static ALPHABET: &'static str = "abcdefghijklmnopqrstuvwxyz ";
@@ -57,62 +57,61 @@ impl WordList {
         for _ in 0..target.len() {
             local_vecs.push(Vec::<String>::with_capacity(ALPHABET.len() * 2 + 2));
         }
+
         let mut pool = Pool::new(4);
 
-        for (i, mut local_vec) in local_vecs.iter_mut().enumerate() {
-            pool.scoped(|scope| {
-                scope.execute(|| {
-                    {
-                        let mut t = String::with_capacity(target.len()-1);
-                        for (pos, c) in target.char_indices() {
-                            if pos != i { t.push(c); }
+        pool.for_(local_vecs.iter_mut(), |mut local_vec| {
+            for i in 0..target.len() {
+                {
+                    let mut t = String::with_capacity(target.len()-1);
+                    for (pos, c) in target.char_indices() {
+                        if pos != i { t.push(c); }
+                    }
+
+                    self.insert_if_new(&mut local_vec, t, target);
+                }
+
+                // Swap
+                {
+                    let mut t = String::with_capacity(target.len());
+                    for (pos, c) in target.char_indices() {
+                        if pos > 0 && pos - 1 == i {
+                            t.insert(i, c);
+                        } else {
+                            t.push(c);
                         }
-
-                        self.insert_if_new(&mut local_vec, t, target);
                     }
 
-                    // Swap
-                    {
-                        let mut t = String::with_capacity(target.len());
-                        for (pos, c) in target.char_indices() {
-                            if pos > 0 && pos - 1 == i {
-                                t.insert(i, c);
-                            } else {
-                                t.push(c);
-                            }
+                    self.insert_if_new(&mut local_vec, t, target);
+                }
+
+                // Edit
+                for a in ALPHABET.chars() {
+                    let mut t = String::with_capacity(target.len());
+                    // Create a new string with the one letter changed
+                    for (pos, c) in target.char_indices() {
+                        if pos == i {
+                            t.push(a);
+                        } else {
+                            t.push(c);
                         }
-
-                        self.insert_if_new(&mut local_vec, t, target);
                     }
 
-                    // Edit
-                    for a in ALPHABET.chars() {
-                        let mut t = String::with_capacity(target.len());
-                        // Create a new string with the one letter changed
-                        for (pos, c) in target.char_indices() {
-                            if pos == i {
-                                t.push(a);
-                            } else {
-                                t.push(c);
-                            }
-                        }
+                    self.insert_if_new(&mut local_vec, t, target);
+                }
 
-                        self.insert_if_new(&mut local_vec, t, target);
-                    }
+                // Insert
+                for a in ALPHABET.chars() {
+                    let mut insertion = String::with_capacity(target.len() + 1);
+                    for (pos, c) in target.char_indices() {
+                        insertion.push(c);
+                        if pos == i { insertion.push(a) }
+                    };
 
-                    // Insert
-                    for a in ALPHABET.chars() {
-                        let mut insertion = String::with_capacity(target.len() + 1);
-                        for (pos, c) in target.char_indices() {
-                            insertion.push(c);
-                            if pos == i { insertion.push(a) }
-                        };
-
-                        self.insert_if_new(&mut local_vec, insertion, target);
-                    }
-                });
-            });
-        }
+                    self.insert_if_new(&mut local_vec, insertion, target);
+                }
+            }
+        });
         for ref mut vec in local_vecs { out.append(vec); }
         out
     }
@@ -153,8 +152,8 @@ impl<'a> SearchProblem for WordSearch<'a> {
 
     fn neighbors(&mut self, node: &String) -> IntoIter<(String, i32)> {
         let adj: Vec<String> = self.words.adjacent_words(&node);
-        let vec: Vec<(String, i32)> = adj.iter().map(|w| (w.to_owned(), 1i32)).collect();
-        vec.into_iter()
+        let out: Vec<(String, i32)> = adj.into_iter().map(|w| (w, 1i32)).collect();
+        out.into_iter()
     }
 }
 
