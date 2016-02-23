@@ -2,12 +2,16 @@ extern crate words;
 extern crate astar;
 
 use std::path::Path;
-use words::*;
+use words::{WordSearch, WordList, WORDS_PATH};
+use astar::astar;
 
 fn main() {
+    let mut args = std::env::args();
+    args.next();
+    let start = args.next().unwrap_or("".to_owned());
+    let end = args.next().unwrap_or("".to_owned());
     let words = WordList::new(Path::new(&WORDS_PATH)).unwrap();
-    let start = "not".to_string();
-    let end = "the".to_string();
     let mut search = WordSearch::new(start, end, &words);
-    astar::astar(&mut search);
+    let path = astar(&mut search).unwrap();
+    println!("{:?}", path);
 }

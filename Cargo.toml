@@ -4,5 +4,9 @@ version = "0.1.0"
 authors = ["Andrew Smith <andrewchristophersmith@gmail.com>"]
 
 [dependencies]
-astar = "0.1"
+astar = { path = "/Users/acsmith/workspaces/rust/astar" }
 edit-distance = "1.0"
+scoped_threadpool = "0.1"
+
+[profile.release]
+debug = true
