@@ -30,14 +30,14 @@ impl WordList {
         self.words.binary_search_by(|w| w[..].cmp(target))
     }
 
-    fn insert_if_new<'a>(&'a self, out: &'a mut Vec<String>, word: String, target: &String) {
-        if &word == target { return; }
+    fn insert_if_new<'a>(&'a self, out: &'a mut Vec<String>, word: String, target: &str) {
+        if word == *target { return; }
         if word.split_whitespace().all(|w| {
-            self.find_word(&w.to_string()).is_ok()
+            self.find_word(w).is_ok()
         }) { out.push(word); }
     }
 
-    fn adjacent_words(&self, target: &String) -> Vec<String> {
+    fn adjacent_words(&self, target: &str) -> Vec<String> {
         let mut out = Vec::<String>::new();
 
         for a in ALPHABET.chars() {
@@ -47,7 +47,7 @@ impl WordList {
                 insertion.push(c);
             };
 
-            self.insert_if_new(&mut out, insertion, &target);
+            self.insert_if_new(&mut out, insertion, target);
         }
 
         for i in 0..target.len() {
@@ -56,7 +56,7 @@ impl WordList {
                 if pos == i { None } else { Some(c) }
             }).collect();
 
-            self.insert_if_new(&mut out, deletion, &target);
+            self.insert_if_new(&mut out, deletion, target);
 
             // Swap
             {
@@ -69,7 +69,7 @@ impl WordList {
                     }
                 }
 
-                self.insert_if_new(&mut out, t, &target);
+                self.insert_if_new(&mut out, t, target);
             }
 
             // Edit
@@ -79,7 +79,7 @@ impl WordList {
                     if pos == i { a } else { c }
                 }).collect();
 
-                self.insert_if_new(&mut out, t, &target);
+                self.insert_if_new(&mut out, t, target);
             }
 
             // Insert
@@ -90,7 +90,7 @@ impl WordList {
                     if pos == i { insertion.push(a) }
                 };
 
-                self.insert_if_new(&mut out, insertion, &target);
+                self.insert_if_new(&mut out, insertion, target);
             }
 
         }
