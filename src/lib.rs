@@ -9,8 +9,8 @@ use std::path::Path;
 use astar::SearchProblem;
 use edit_distance::edit_distance;
 
-static WORDS_PATH: &'static str = "/Users/acsmith/nltk_data/corpora/words/en";
-static ALPHABET: &'static str = "abcdefghijklmnopqrstuvwxyz ";
+pub static WORDS_PATH: &'static str = "/Users/acsmith/nltk_data/corpora/words/en";
+pub static ALPHABET: &'static str = "abcdefghijklmnopqrstuvwxyz ";
 
 pub struct WordList {
     words: Vec<String>
@@ -38,7 +38,8 @@ impl WordList {
     }
 
     fn adjacent_words(&self, target: &str) -> Vec<String> {
-        let mut out = Vec::<String>::new();
+        let capacity = ALPHABET.len() * target.len() * 3 + ALPHABET.len() + target.len();
+        let mut out = Vec::<String>::with_capacity(capacity);
 
         for a in ALPHABET.chars() {
             let mut insertion = String::with_capacity(target.len() + 1);
@@ -52,11 +53,14 @@ impl WordList {
 
         for i in 0..target.len() {
             // Deletion
-            let deletion = target.char_indices().filter_map(|(pos, c)| {
-                if pos == i { None } else { Some(c) }
-            }).collect();
+            {
+                let mut t = String::with_capacity(target.len()-1);
+                for (pos, c) in target.char_indices() {
+                    if pos != i { t.push(c); }
+                }
 
-            self.insert_if_new(&mut out, deletion, target);
+                self.insert_if_new(&mut out, t, target);
+            }
 
             // Swap
             {
@@ -74,10 +78,15 @@ impl WordList {
 
             // Edit
             for a in ALPHABET.chars() {
+                let mut t = String::with_capacity(target.len());
                 // Create a new string with the one letter changed
-                let t = target.char_indices().map(|(pos, c)| {
-                    if pos == i { a } else { c }
-                }).collect();
+                for (pos, c) in target.char_indices() {
+                    if pos == i {
+                        t.push(a);
+                    } else {
+                        t.push(c);
+                    }
+                }
 
                 self.insert_if_new(&mut out, t, target);
             }
@@ -102,6 +111,16 @@ pub struct WordSearch<'a> {
     start: String,
     end: String,
     words: &'a WordList
+}
+
+impl<'a> WordSearch<'a> {
+    pub fn new(start: String, end: String, words: &'a WordList) -> WordSearch {
+        WordSearch {
+            start: start,
+            end: end,
+            words: words
+        }
+    }
 }
 
 impl<'a> SearchProblem for WordSearch<'a> {
@@ -136,11 +155,7 @@ fn test_path() {
     let words = WordList::new(Path::new(&WORDS_PATH)).unwrap();
 
     for a in inner_path.windows(2) {
-        let mut search = WordSearch { 
-            words: &words, 
-            start: a[0].to_string(),
-            end: a[1].to_string()
-        };
+        let mut search = WordSearch::new(a[0].to_string(), a[1].to_string(), &words);
         let path = astar::astar(&mut search).unwrap();
         println!("{}", a[0]);
         for word in path {
