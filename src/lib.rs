@@ -9,7 +9,7 @@ use std::path::Path;
 use astar::SearchProblem;
 use edit_distance::edit_distance;
 
-pub static WORDS_PATH: &'static str = "/Users/acsmith/nltk_data/corpora/words/en";
+pub static WORDS_PATH: &'static str = "./data/en";
 pub static ALPHABET: &'static str = "abcdefghijklmnopqrstuvwxyz ";
 
 pub struct WordList {
