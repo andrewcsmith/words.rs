@@ -4,7 +4,7 @@ extern crate simple_parallel;
 
 use std::fs::File;
 use std::io::{Error, BufReader, BufRead};
-use std::vec::IntoIter;
+use std::iter::Iterator;
 use std::path::Path;
 
 use astar::SearchProblem;
@@ -46,7 +46,7 @@ impl WordList {
         for a in ALPHABET.chars() {
             let mut insertion = String::with_capacity(target.len() + 1);
             insertion.push(a);
-            for (pos, c) in target.char_indices() {
+            for c in target.chars() {
                 insertion.push(c);
             };
 
@@ -136,7 +136,7 @@ impl<'a> WordSearch<'a> {
 impl<'a> SearchProblem for WordSearch<'a> {
     type Node = String;
     type Cost = i32;
-    type Iter = IntoIter<(String, i32)>;
+    type Iter = Box<Iterator<Item=(String, i32)>>;
 
     fn start(&self) -> String {
         self.start.to_owned()
@@ -150,10 +150,9 @@ impl<'a> SearchProblem for WordSearch<'a> {
         edit_distance(&self.end, &node) as i32
     }
 
-    fn neighbors(&mut self, node: &String) -> IntoIter<(String, i32)> {
+    fn neighbors(&mut self, node: &String) -> Box<Iterator<Item=(String, i32)>> {
         let adj: Vec<String> = self.words.adjacent_words(&node);
-        let out: Vec<(String, i32)> = adj.into_iter().map(|w| (w, 1i32)).collect();
-        out.into_iter()
+        Box::new(adj.into_iter().map(|w| (w, 1i32)))
     }
 }
 
