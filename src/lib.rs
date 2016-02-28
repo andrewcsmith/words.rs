@@ -39,7 +39,7 @@ impl WordList {
         }) { out.push(word); }
     }
 
-    fn adjacent_words(&self, target: &str) -> Vec<String> {
+    pub fn adjacent_words(&self, target: &str) -> Vec<String> {
         let capacity = ALPHABET.len() * target.len() * 3 + ALPHABET.len() + target.len();
         let mut out = Vec::<String>::with_capacity(capacity);
 
