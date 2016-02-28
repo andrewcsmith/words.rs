@@ -6,6 +6,7 @@ use std::fs::File;
 use std::io::{Error, BufReader, BufRead};
 use std::iter::Iterator;
 use std::path::Path;
+use std::collections::HashSet;
 
 use astar::SearchProblem;
 use edit_distance::edit_distance;
@@ -15,31 +16,25 @@ pub static WORDS_PATH: &'static str = "./data/en";
 pub static ALPHABET: &'static str = "abcdefghijklmnopqrstuvwxyz ";
 
 pub struct WordList {
-    words: Vec<String>
+    words: HashSet<String>
 }
 
 impl WordList {
     pub fn new(path: &Path) -> Result<WordList, Error> {
         let file = try!(File::open(&path));
         let file = BufReader::new(file);
-        let out = file.lines().map(|line| {
-            line.unwrap_or("".to_owned()).to_lowercase()
-        }).collect();
-        Ok(WordList{ words: out})
+        let mut out: HashSet<String> = HashSet::new();
+        for line in file.lines() {
+            out.insert(line.unwrap_or("".to_owned()).to_lowercase());
+        }
+        Ok(WordList{ words: out })
     }
 
-    fn find_word(&self, target: &str) -> Result<usize, usize> {
-        self.words.binary_search_by(|w| w[..].cmp(target))
+    pub fn find_word(&self, target: &str) -> bool {
+        self.words.contains(target)
     }
 
-    fn insert_if_new<'a>(&'a self, out: &'a mut Vec<String>, word: String, target: &str) {
-        if word == *target { return; }
-        if word.split_whitespace().all(|w| {
-            self.find_word(w).is_ok()
-        }) { out.push(word); }
-    }
-
-    pub fn adjacent_words(&self, target: &str) -> Vec<String> {
+    pub fn adjacent_words(&self, target: &str, threads: usize) -> Vec<String> {
         let capacity = ALPHABET.len() * target.len() * 3 + ALPHABET.len() + target.len();
         let mut out = Vec::<String>::with_capacity(capacity);
 
@@ -58,7 +53,7 @@ impl WordList {
             local_vecs.push(Vec::<String>::with_capacity(ALPHABET.len() * 2 + 2));
         }
 
-        let mut pool = Pool::new(4);
+        let mut pool = Pool::new(threads);
 
         pool.for_(local_vecs.iter_mut(), |mut local_vec| {
             for i in 0..target.len() {
@@ -115,6 +110,13 @@ impl WordList {
         for ref mut vec in local_vecs { out.append(vec); }
         out
     }
+
+    fn insert_if_new<'a>(&'a self, out: &'a mut Vec<String>, word: String, target: &str) {
+        if word == *target { return; }
+        if word.split_whitespace().all(|w| {
+            self.find_word(w)
+        }) { out.push(word); }
+    }
 }
 
 pub struct WordSearch<'a> {
@@ -151,7 +153,7 @@ impl<'a> SearchProblem for WordSearch<'a> {
     }
 
     fn neighbors(&mut self, node: &String) -> Box<Iterator<Item=(String, i32)>> {
-        let adj: Vec<String> = self.words.adjacent_words(&node);
+        let adj: Vec<String> = self.words.adjacent_words(&node, 8);
         Box::new(adj.into_iter().map(|w| (w, 1i32)))
     }
 }
@@ -177,7 +179,7 @@ fn test_path() {
 fn test_adjacent_words() {
     let words = WordList::new(Path::new(&WORDS_PATH)).unwrap();
     let w = "rata";
-    let adjacent = words.adjacent_words(&w.to_owned());
+    let adjacent = words.adjacent_words(&w.to_owned(), 1);
     println!("{:?}", adjacent);
     // Ensure insertion works
     assert!(adjacent.iter().find(|a| *a == &"ratwa".to_owned()).is_some());
@@ -189,7 +191,7 @@ fn test_adjacent_words() {
 fn test_inserts_space() {
     let words = WordList::new(Path::new(&WORDS_PATH)).unwrap();
     let w = "treehouse";
-    let adjacent = words.adjacent_words(&w.to_owned());
+    let adjacent = words.adjacent_words(&w.to_owned(), 1);
     println!("{:?}", adjacent);
     // Ensure insertion works
     assert!(adjacent.iter().find(|a| *a == &"tree house".to_owned()).is_some());
@@ -209,7 +211,7 @@ fn test_insert_if_new() {
 fn test_deletes_space() {
     let words = WordList::new(Path::new(&WORDS_PATH)).unwrap();
     let w = "re member";
-    let adjacent = words.adjacent_words(&w.to_owned());
+    let adjacent = words.adjacent_words(&w.to_owned(), 1);
     println!("{:?}", adjacent);
     // Ensure deletion works
     assert!(adjacent.iter().find(|a| *a == &"remember".to_owned()).is_some());
