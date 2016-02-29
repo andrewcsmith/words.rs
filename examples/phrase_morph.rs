@@ -13,5 +13,7 @@ fn main() {
     let words = WordList::new(Path::new(&WORDS_PATH)).unwrap();
     let mut search = WordSearch::new(start, end, &words);
     let path = astar(&mut search).unwrap();
-    println!("{:?}", path);
+    for word in path {
+        println!("{}", word);
+    }
 }
