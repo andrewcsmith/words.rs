@@ -10,7 +10,8 @@ fn main() {
     args.next();
     let start = args.next().unwrap_or("".to_owned());
     let end = args.next().unwrap_or("".to_owned());
-    let words = WordList::new(Path::new(&WORDS_PATH)).unwrap();
+    let dict = args.next().unwrap_or(WORDS_PATH.to_owned());
+    let words = WordList::new(Path::new(&dict)).unwrap();
     let mut search = WordSearch::new(start, end, &words);
     let path = astar(&mut search).unwrap();
     for word in path {

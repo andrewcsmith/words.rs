@@ -38,51 +38,43 @@ impl WordList {
         let capacity = ALPHABET.len() * target.len() * 3 + ALPHABET.len() + target.len();
         let mut out = Vec::<String>::with_capacity(capacity);
 
+        let mut insertion = String::with_capacity(target.len() + 1);
         for a in ALPHABET.chars() {
-            let mut insertion = String::with_capacity(target.len() + 1);
             insertion.push(a);
             for c in target.chars() {
                 insertion.push(c);
             };
-
-            self.insert_if_new(&mut out, insertion, target);
+            self.insert_if_new(&mut out, insertion.clone(), target);
+            insertion.clear();
         }
 
-        let mut local_vecs = Vec::<Vec<String>>::with_capacity(target.len());
-        for _ in 0..target.len() {
+        let mut local_vecs = Vec::<Vec<String>>::with_capacity(threads);
+        for _ in 0..threads {
             local_vecs.push(Vec::<String>::with_capacity(ALPHABET.len() * 2 + 2));
         }
 
         let mut pool = Pool::new(threads);
 
         pool.for_(local_vecs.iter_mut(), |mut local_vec| {
+            let mut t = String::with_capacity(target.len() + 1);
             for i in 0..target.len() {
-                {
-                    let mut t = String::with_capacity(target.len()-1);
-                    for (pos, c) in target.char_indices() {
-                        if pos != i { t.push(c); }
-                    }
-
-                    self.insert_if_new(&mut local_vec, t, target);
+                for (pos, c) in target.char_indices() {
+                    if pos != i { t.push(c); }
                 }
+                self.insert_if_new_and_clear(&mut local_vec, &mut t, target);
 
                 // Swap
-                {
-                    let mut t = String::with_capacity(target.len());
-                    for (pos, c) in target.char_indices() {
-                        if pos > 0 && pos - 1 == i {
-                            t.insert(i, c);
-                        } else {
-                            t.push(c);
-                        }
+                for (pos, c) in target.char_indices() {
+                    if pos > 0 && pos - 1 == i {
+                        t.insert(i, c);
+                    } else {
+                        t.push(c);
                     }
-
-                    self.insert_if_new(&mut local_vec, t, target);
                 }
+                self.insert_if_new_and_clear(&mut local_vec, &mut t, target);
 
                 // Edit
                 for a in ALPHABET.chars() {
-                    let mut t = String::with_capacity(target.len());
                     // Create a new string with the one letter changed
                     for (pos, c) in target.char_indices() {
                         if pos == i {
@@ -92,18 +84,17 @@ impl WordList {
                         }
                     }
 
-                    self.insert_if_new(&mut local_vec, t, target);
+                    self.insert_if_new_and_clear(&mut local_vec, &mut t, target);
                 }
 
                 // Insert
                 for a in ALPHABET.chars() {
-                    let mut insertion = String::with_capacity(target.len() + 1);
                     for (pos, c) in target.char_indices() {
-                        insertion.push(c);
-                        if pos == i { insertion.push(a) }
+                        t.push(c);
+                        if pos == i { t.push(a) }
                     };
 
-                    self.insert_if_new(&mut local_vec, insertion, target);
+                    self.insert_if_new_and_clear(&mut local_vec, &mut t, target);
                 }
             }
         });
@@ -116,6 +107,11 @@ impl WordList {
         if word.split_whitespace().all(|w| {
             self.find_word(w)
         }) { out.push(word); }
+    }
+    
+    fn insert_if_new_and_clear<'a>(&'a self, out: &'a mut Vec<String>, word: &'a mut String, target: &str) {
+        self.insert_if_new(out, word.clone(), target);
+        word.clear();
     }
 }
 
@@ -153,14 +149,13 @@ impl<'a> SearchProblem for WordSearch<'a> {
     }
 
     fn neighbors(&mut self, node: &String) -> Box<Iterator<Item=(String, i32)>> {
-        let adj: Vec<String> = self.words.adjacent_words(&node, 8);
+        let adj: Vec<String> = self.words.adjacent_words(&node, 4);
         Box::new(adj.into_iter().map(|w| (w, 1i32)))
     }
 }
 
 #[test]
 fn test_path() {
-    // let inner_path = vec!["we", "member", "not", "the", "word", "but", "the", "sound", "of", "the", "word"];
     let inner_path = vec!["we", "not"];
 
     let words = WordList::new(Path::new(&WORDS_PATH)).unwrap();
@@ -202,8 +197,7 @@ fn test_insert_if_new() {
     let words = WordList::new(Path::new(&WORDS_PATH)).unwrap();
     let mut out = Vec::<String>::new();
     let w = "tree house".to_owned();
-    let result = words.insert_if_new(&mut out, w, &"treehouse".to_owned());
-    println!("{:?}", &out);
+    words.insert_if_new(&mut out, w, &"treehouse".to_owned()); println!("{:?}", &out);
     assert!(out.iter().find(|a| *a == &"tree house".to_owned()).is_some());
 }
 
