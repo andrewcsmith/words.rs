@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["Andrew Smith <andrewchristophersmith@gmail.com>"]
 
 [dependencies]
-astar = { path = "/Users/acsmith/workspaces/rust/astar" }
+astar = "0.1"
 edit-distance = "1.0"
-simple_parallel = "0.3"
+
+[dependencies.simple_parallel]
+git = "https://github.com/bluss/simple_parallel.git"
+branch = "crossbeam-upgrade" 
