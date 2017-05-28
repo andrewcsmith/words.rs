@@ -6,6 +6,7 @@ authors = ["Andrew Smith <andrewchristophersmith@gmail.com>"]
 [dependencies]
 astar = "0.1"
 edit-distance = "1.0"
+pipers = "1.0"
 
 [dependencies.simple_parallel]
 git = "https://github.com/bluss/simple_parallel.git"

@@ -1,23 +1,29 @@
 extern crate astar;
 extern crate edit_distance;
 extern crate simple_parallel;
+extern crate pipers;
 
 use std::fs::File;
 use std::io::{Error, BufReader, BufRead};
 use std::iter::Iterator;
 use std::path::Path;
 use std::collections::HashSet;
+use std::process::Command;
 
 use astar::SearchProblem;
 use edit_distance::edit_distance;
 use simple_parallel::Pool;
 
-pub static WORDS_PATH: &'static str = "./data/en";
-pub static ALPHABET: &'static str = "abcdefghijklmnopqrstuvwxyz ";
+pub static WORDS_PATH: &'static str = "./data/es_large";
+// pub static ALPHABET: &'static str = "abcdefghijklmnñopqrstuvwxyz ";
+pub static ALPHABET: &'static str = "aáàbcdeéèfghiíìjklmnñoópqrstuúùvwxyz ";
+// pub static ALPHABET: &'static str = "abcdefghijklmnopqrstuvwxyz ";
 
 pub struct EnglishWordList {
     words: HashSet<String>
 }
+
+pub struct EspanolPalabras;
 
 pub trait WordList: Sync {
     fn find_word(&self, target: &str) -> bool;
@@ -41,6 +47,21 @@ impl WordList for EnglishWordList {
     }
 }
 
+impl WordList for EspanolPalabras {
+    fn find_word(&self, target: &str) -> bool {
+        let out = pipers::Pipe::new(format!("echo {}", target).as_str())
+            .then("aspell --lang=es list")
+            .finally()
+            .expect("Commands did not pipe.")
+            .wait_with_output()
+            .expect("Failed to wait on child.");
+
+        let bad_words = String::from_utf8(out.stdout).expect("stdout conversion failed.");
+        // println!("{}", bad_words.trim());
+        if bad_words.len() > 0 { false } else { true }
+    }
+}
+
 pub struct WordSearch<'a, WL> 
 where WL: 'a + WordList
 {
@@ -61,10 +82,12 @@ where WL: 'a + WordList
     }
 
     pub fn adjacent_words(&self, target: &str, threads: usize) -> Vec<String> {
-        let capacity = ALPHABET.len() * target.len() * 3 + ALPHABET.len() + target.len();
+        let alphabet_len = ALPHABET.chars().count();
+        let target_len = target.chars().count();
+        let capacity = alphabet_len * target_len * 3 + alphabet_len + target_len;
         let mut out = Vec::<String>::with_capacity(capacity);
 
-        let mut insertion = String::with_capacity(target.len() + 1);
+        let mut insertion = String::with_capacity(target_len + 1);
         for a in ALPHABET.chars() {
             insertion.push(a);
             for c in target.chars() {
@@ -76,26 +99,31 @@ where WL: 'a + WordList
 
         let mut local_vecs = Vec::<Vec<String>>::with_capacity(threads);
         for _ in 0..threads {
-            local_vecs.push(Vec::<String>::with_capacity(ALPHABET.len() * 2 + 2));
+            local_vecs.push(Vec::<String>::with_capacity(alphabet_len * 2 + 2));
         }
 
         let mut pool = Pool::new(threads);
 
         pool.for_(local_vecs.iter_mut(), |mut local_vec| {
-            let mut t = String::with_capacity(target.len() + 1);
-            for i in 0..target.len() {
+            // temporary string that we use and clear repeatedly
+            let mut t = String::with_capacity(target_len + 1);
+            // for each character in the target
+            for i in 0..target_len {
+                // Remove char i
                 for (pos, c) in target.char_indices() {
                     if pos != i { t.push(c); }
                 }
                 self.insert_if_new_and_clear(&mut local_vec, &mut t, target);
 
-                // Swap
+                // Swap char i with char i + 1
+                let mut last_pos = 0;
                 for (pos, c) in target.char_indices() {
-                    if pos > 0 && pos - 1 == i {
+                    if pos > 0 && last_pos == i {
                         t.insert(i, c);
                     } else {
                         t.push(c);
                     }
+                    last_pos = pos;
                 }
                 self.insert_if_new_and_clear(&mut local_vec, &mut t, target);
 
@@ -130,9 +158,13 @@ where WL: 'a + WordList
 
     fn insert_if_new<'b>(&'b self, out: &'b mut Vec<String>, word: String, target: &str) {
         if word == *target { return; }
-        if word.split_whitespace().all(|w| {
-            self.words.find_word(w)
-        }) { out.push(word); }
+        let mut all_words: Vec<&str> = Vec::new();
+        for w in word.split_whitespace() {
+            all_words.push(w.trim());
+        }
+        if all_words.iter().all(|w| self.words.find_word(w)) {
+            out.push(all_words.join(" ").trim().to_string());
+        }
     }
     
     fn insert_if_new_and_clear<'b>(&'b self, out: &'b mut Vec<String>, word: &'a mut String, target: &str) {
