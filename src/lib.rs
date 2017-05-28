@@ -15,23 +15,49 @@ use simple_parallel::Pool;
 pub static WORDS_PATH: &'static str = "./data/en";
 pub static ALPHABET: &'static str = "abcdefghijklmnopqrstuvwxyz ";
 
-pub struct WordList {
+pub struct EnglishWordList {
     words: HashSet<String>
 }
 
-impl WordList {
-    pub fn new(path: &Path) -> Result<WordList, Error> {
+pub trait WordList: Sync {
+    fn find_word(&self, target: &str) -> bool;
+}
+
+impl EnglishWordList {
+    pub fn new(path: &Path) -> Result<EnglishWordList, Error> {
         let file = try!(File::open(&path));
         let file = BufReader::new(file);
         let mut out: HashSet<String> = HashSet::new();
         for line in file.lines() {
             out.insert(line.unwrap_or("".to_owned()).to_lowercase());
         }
-        Ok(WordList{ words: out })
+        Ok(EnglishWordList{ words: out })
     }
+}
 
-    pub fn find_word(&self, target: &str) -> bool {
+impl WordList for EnglishWordList {
+    fn find_word(&self, target: &str) -> bool {
         self.words.contains(target)
+    }
+}
+
+pub struct WordSearch<'a, WL> 
+where WL: 'a + WordList
+{
+    start: String,
+    end: String,
+    words: &'a WL
+}
+
+impl<'a, WL> WordSearch<'a, WL> 
+where WL: 'a + WordList
+{
+    pub fn new(start: String, end: String, words: &'a WL) -> Self {
+        WordSearch {
+            start: start,
+            end: end,
+            words: words
+        }
     }
 
     pub fn adjacent_words(&self, target: &str, threads: usize) -> Vec<String> {
@@ -102,36 +128,22 @@ impl WordList {
         out
     }
 
-    fn insert_if_new<'a>(&'a self, out: &'a mut Vec<String>, word: String, target: &str) {
+    fn insert_if_new<'b>(&'b self, out: &'b mut Vec<String>, word: String, target: &str) {
         if word == *target { return; }
         if word.split_whitespace().all(|w| {
-            self.find_word(w)
+            self.words.find_word(w)
         }) { out.push(word); }
     }
     
-    fn insert_if_new_and_clear<'a>(&'a self, out: &'a mut Vec<String>, word: &'a mut String, target: &str) {
+    fn insert_if_new_and_clear<'b>(&'b self, out: &'b mut Vec<String>, word: &'a mut String, target: &str) {
         self.insert_if_new(out, word.clone(), target);
         word.clear();
     }
 }
 
-pub struct WordSearch<'a> {
-    start: String,
-    end: String,
-    words: &'a WordList
-}
-
-impl<'a> WordSearch<'a> {
-    pub fn new(start: String, end: String, words: &'a WordList) -> WordSearch {
-        WordSearch {
-            start: start,
-            end: end,
-            words: words
-        }
-    }
-}
-
-impl<'a> SearchProblem for WordSearch<'a> {
+impl<'a, WL> SearchProblem for WordSearch<'a, WL> 
+where WL: 'a + WordList
+{
     type Node = String;
     type Cost = i32;
     type Iter = Box<Iterator<Item=(String, i32)>>;
@@ -149,7 +161,7 @@ impl<'a> SearchProblem for WordSearch<'a> {
     }
 
     fn neighbors(&mut self, node: &String) -> Box<Iterator<Item=(String, i32)>> {
-        let adj: Vec<String> = self.words.adjacent_words(&node, 4);
+        let adj: Vec<String> = self.adjacent_words(&node, 4);
         Box::new(adj.into_iter().map(|w| (w, 1i32)))
     }
 }
@@ -158,7 +170,7 @@ impl<'a> SearchProblem for WordSearch<'a> {
 fn test_path() {
     let inner_path = vec!["we", "not"];
 
-    let words = WordList::new(Path::new(&WORDS_PATH)).unwrap();
+    let words = EnglishWordList::new(Path::new(&WORDS_PATH)).unwrap();
 
     for a in inner_path.windows(2) {
         let mut search = WordSearch::new(a[0].to_owned(), a[1].to_owned(), &words);
