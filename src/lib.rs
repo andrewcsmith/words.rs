@@ -14,10 +14,10 @@ use astar::SearchProblem;
 use edit_distance::edit_distance;
 use simple_parallel::Pool;
 
-pub static WORDS_PATH: &'static str = "./data/es_large";
+pub static WORDS_PATH: &'static str = "./data/en";
 // pub static ALPHABET: &'static str = "abcdefghijklmnñopqrstuvwxyz ";
-pub static ALPHABET: &'static str = "aáàbcdeéèfghiíìjklmnñoópqrstuúùvwxyz ";
-// pub static ALPHABET: &'static str = "abcdefghijklmnopqrstuvwxyz ";
+// pub static ALPHABET: &'static str = "aáàbcdeéèfghiíìjklmnñoópqrstuúùvwxyz ";
+pub static ALPHABET: &'static str = "abcdefghijklmnopqrstuvwxyz ";
 
 pub struct EnglishWordList {
     words: HashSet<String>
